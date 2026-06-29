@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --hub-purple: #6b21a8;
+  --hub-purple-light: #9333ea;
+  --hub-purple-dark: #581c87;
+  --hub-purple-pale: #f3e8ff;
+  --hub-purple-muted: #e9d5ff;
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 50%, #ede9fe 100%);
+  min-height: 100vh;
+}

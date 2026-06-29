@@ -1,0 +1,20 @@
+Student: Emma Thompson
+Test: Term 2 Algebra Assessment
+Score context: 78%
+
+Topics covered:
+- Linear equations (strong)
+- Simultaneous equations (good understanding)
+- Quadratic factorisation (needs work)
+- Word problems (variable performance)
+
+Observations:
+Emma showed confidence with single-variable equations and explained her working clearly.
+She struggled with factorising harder quadratics and lost marks on multi-step word problems.
+Homework completion has been consistent this term.
+Engaged well in class discussions.
+
+Areas to focus:
+- Practise factorising quadratics where a > 1
+- Break word problems into smaller steps before solving
+- Check answers by substituting back into the original equation
