@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/lib/enums";
 import { hash } from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/authz";

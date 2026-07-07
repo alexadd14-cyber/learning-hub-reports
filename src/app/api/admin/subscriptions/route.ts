@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@/lib/enums";
 import { db } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/authz";
 

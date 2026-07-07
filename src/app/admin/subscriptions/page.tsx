@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@/lib/enums";
 import { db } from "@/lib/db";
 
 export default async function SubscriptionsPage() {

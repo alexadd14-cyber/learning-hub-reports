@@ -1,4 +1,4 @@
-import { PrismaClient, SubscriptionStatus, UserRole } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -33,21 +33,6 @@ async function main() {
     });
   }
 
-  const branch = await prisma.branch.upsert({
-    where: { slug: "hq-demo-branch" },
-    update: {
-      name: "HQ Demo Branch",
-      contactEmail: "admin@learninghub.local",
-      isActive: true,
-    },
-    create: {
-      name: "HQ Demo Branch",
-      slug: "hq-demo-branch",
-      contactEmail: "admin@learninghub.local",
-      isActive: true,
-    },
-  });
-
   const standardPlan = await prisma.plan.findUnique({
     where: { name: "Standard" },
   });
@@ -56,38 +41,73 @@ async function main() {
     throw new Error("Standard plan missing after seed upsert");
   }
 
-  await prisma.subscription.upsert({
-    where: { id: `seed-subscription-${branch.id}` },
-    update: {
-      status: SubscriptionStatus.active,
-      planId: standardPlan.id,
-      branchId: branch.id,
-      startsAt: new Date(),
-    },
-    create: {
-      id: `seed-subscription-${branch.id}`,
-      branchId: branch.id,
-      planId: standardPlan.id,
-      status: SubscriptionStatus.active,
-      startsAt: new Date(),
-    },
-  });
-
-  const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
+  // HQ super admin (manages branches, plans, subscriptions)
+  const adminPasswordHash = await bcrypt.hash("ChangeMe123!", 10);
   await prisma.user.upsert({
     where: { email: "admin@learninghub.local" },
     update: {
-      role: UserRole.super_admin,
-      passwordHash,
+      role: "super_admin",
+      passwordHash: adminPasswordHash,
       branchId: null,
       name: "HQ Admin",
     },
     create: {
       email: "admin@learninghub.local",
       name: "HQ Admin",
-      role: UserRole.super_admin,
-      passwordHash,
+      role: "super_admin",
+      passwordHash: adminPasswordHash,
       branchId: null,
+    },
+  });
+
+  // Demo branch for showing the report system working end to end
+  const eastHam = await prisma.branch.upsert({
+    where: { slug: "east-ham" },
+    update: {
+      name: "East Ham Branch",
+      contactEmail: "eastham@learninghub.local",
+      isActive: true,
+    },
+    create: {
+      name: "East Ham Branch",
+      slug: "east-ham",
+      contactEmail: "eastham@learninghub.local",
+      isActive: true,
+    },
+  });
+
+  await prisma.subscription.upsert({
+    where: { id: `seed-subscription-${eastHam.id}` },
+    update: {
+      status: "active",
+      planId: standardPlan.id,
+      branchId: eastHam.id,
+      startsAt: new Date(),
+    },
+    create: {
+      id: `seed-subscription-${eastHam.id}`,
+      branchId: eastHam.id,
+      planId: standardPlan.id,
+      status: "active",
+      startsAt: new Date(),
+    },
+  });
+
+  const demoPasswordHash = await bcrypt.hash("Demo123!", 10);
+  await prisma.user.upsert({
+    where: { email: "demo@eastham.local" },
+    update: {
+      role: "branch_user",
+      passwordHash: demoPasswordHash,
+      branchId: eastHam.id,
+      name: "East Ham Tutor",
+    },
+    create: {
+      email: "demo@eastham.local",
+      name: "East Ham Tutor",
+      role: "branch_user",
+      passwordHash: demoPasswordHash,
+      branchId: eastHam.id,
     },
   });
 }

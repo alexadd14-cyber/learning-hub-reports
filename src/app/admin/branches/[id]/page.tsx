@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { SubscriptionStatus, UserRole } from "@prisma/client";
+import { SubscriptionStatus, UserRole } from "@/lib/enums";
 import { hash } from "bcryptjs";
 import { db } from "@/lib/db";
 

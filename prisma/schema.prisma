@@ -3,35 +3,23 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  super_admin
-  branch_user
-}
-
-enum SubscriptionStatus {
-  trial
-  active
-  past_due
-  suspended
-  cancelled
-}
-
+// Role values: "super_admin" | "branch_user" (see src/lib/enums.ts)
 model User {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String?
-  email         String   @unique
+  email         String    @unique
   emailVerified DateTime?
   image         String?
   passwordHash  String?
-  role          UserRole @default(branch_user)
+  role          String    @default("branch_user")
   branchId      String?
-  branch        Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  branch        Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   accounts Account[]
   sessions Session[]
@@ -51,28 +39,29 @@ model Branch {
 }
 
 model Plan {
-  id            String         @id @default(cuid())
-  name          String         @unique
-  priceMonthly  Int?
+  id              String         @id @default(cuid())
+  name            String         @unique
+  priceMonthly    Int?
   reportsPerMonth Int?
-  visionEnabled Boolean        @default(false)
-  maxSeats      Int            @default(1)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
+  visionEnabled   Boolean        @default(false)
+  maxSeats        Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  subscriptions   Subscription[]
 }
 
+// Status values: "trial" | "active" | "past_due" | "suspended" | "cancelled"
 model Subscription {
-  id                    String             @id @default(cuid())
-  branchId              String
-  planId                String
-  status                SubscriptionStatus @default(trial)
-  startsAt              DateTime           @default(now())
-  endsAt                DateTime?
-  stripeCustomerId      String?
-  stripeSubscriptionId  String?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  id                   String    @id @default(cuid())
+  branchId             String
+  planId               String
+  status               String    @default("trial")
+  startsAt             DateTime  @default(now())
+  endsAt               DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
   plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
@@ -102,12 +91,12 @@ model Account {
   type               String
   provider           String
   providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
+  refresh_token      String?
+  access_token       String?
   expires_at         Int?
   token_type         String?
   scope              String?
-  id_token           String? @db.Text
+  id_token           String?
   session_state      String?
   oauth_token_secret String?
   oauth_token        String?

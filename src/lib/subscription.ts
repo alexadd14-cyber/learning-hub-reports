@@ -1,4 +1,4 @@
-import { SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@/lib/enums";
 import { db } from "@/lib/db";
 
 export class SubscriptionError extends Error {
