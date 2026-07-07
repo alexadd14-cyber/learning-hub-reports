@@ -1,10 +1,7 @@
 import { findAssessmentById } from "@/lib/catalog";
 import { getAssessmentMaxScore } from "@/types/catalog";
-import type { ReportInput, QuestionMarkInput, QuestionPerformance } from "@/types/report";
-import {
-  PERFORMANCE_OPTIONS,
-  calculateScore,
-} from "@/types/report";
+import type { ReportInput, QuestionMarkInput } from "@/types/report";
+import { clampMarks, markOptions, calculateScore } from "@/types/report";
 
 export interface ValidatedInput {
   input: ReportInput;
@@ -13,16 +10,29 @@ export interface ValidatedInput {
 
 function parseQuestionMarks(
   formData: FormData,
-  questionCount: number
+  maxMarksPerQuestion: number[]
 ): QuestionMarkInput[] {
   const marks: QuestionMarkInput[] = [];
 
-  for (let index = 0; index < questionCount; index++) {
-    const performance = formData.get(`question_${index}`) as string;
-    if (!performance || !PERFORMANCE_OPTIONS.includes(performance as QuestionPerformance)) {
+  for (let index = 0; index < maxMarksPerQuestion.length; index++) {
+    const raw = formData.get(`question_${index}`);
+    if (raw === null || raw === "") return [];
+
+    const awardedMarks = Number(raw);
+    const maxMarks = maxMarksPerQuestion[index] ?? 1;
+    const validOptions = markOptions(maxMarks);
+
+    if (
+      Number.isNaN(awardedMarks) ||
+      !validOptions.some((option) => Math.abs(option - awardedMarks) < 0.001)
+    ) {
       return [];
     }
-    marks.push({ questionIndex: index, performance: performance as QuestionPerformance });
+
+    marks.push({
+      questionIndex: index,
+      awardedMarks: clampMarks(awardedMarks, maxMarks),
+    });
   }
 
   return marks;
@@ -47,10 +57,11 @@ export function validateReportInput(formData: FormData): ValidatedInput {
     return { input: {} as ReportInput, errors };
   }
 
-  const questionMarks = parseQuestionMarks(
-    formData,
-    assessmentRef.assessment.questions.length
+  const maxMarksPerQuestion = assessmentRef.assessment.questions.map(
+    (question) => question.maxMarks ?? 1
   );
+
+  const questionMarks = parseQuestionMarks(formData, maxMarksPerQuestion);
 
   if (questionMarks.length !== assessmentRef.assessment.questions.length) {
     errors.push("Please mark every question before generating the report");

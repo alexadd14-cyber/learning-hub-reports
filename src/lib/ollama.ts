@@ -1,7 +1,8 @@
 import type { GeneratedReport, ReportInput } from "@/types/report";
+import { marksToPerformance } from "@/types/report";
 import type { CatalogAssessmentRef } from "@/types/catalog";
 import { getSubjectLabel } from "@/lib/brand";
-import { getOllamaConfig, ollamaChat, parseJsonContent } from "@/lib/ollama-client";
+import { getOpenAIConfig, openaiChat, parseJsonContent } from "@/lib/openai-client";
 
 interface ReportGenerationContext extends ReportInput {
   assessmentRef: CatalogAssessmentRef;
@@ -17,7 +18,9 @@ function buildPrompt(context: ReportGenerationContext): string {
   const questionSummary = context.questionMarks
     .map((mark, index) => {
       const skill = assessment.questions[index]?.skillArea ?? "Unknown";
-      return `Q${index + 1} (${skill}): ${mark.performance}`;
+      const maxMarks = assessment.questions[index]?.maxMarks ?? 1;
+      const performance = marksToPerformance(mark.awardedMarks, maxMarks);
+      return `Q${index + 1} (${skill}): ${mark.awardedMarks}/${maxMarks} - ${performance}`;
     })
     .join("\n");
 
@@ -98,21 +101,26 @@ function buildFallbackReport(
   const { book, assessment } = context.assessmentRef;
   const firstName = context.studentName.split(" ")[0];
 
-  const questions = context.questionMarks.map((mark, index) => ({
-    label: `Q${index + 1}`,
-    skillArea: assessment.questions[index]?.skillArea ?? "",
-    performance: mark.performance,
-    comment:
-      mark.performance === "Correct"
-        ? `${firstName} answered this question well.`
-        : mark.performance === "Partially correct"
-          ? `${firstName} showed some understanding but needs further practice.`
-          : `${firstName} should revisit this skill area with support.`,
-  }));
+  const questions = context.questionMarks.map((mark, index) => {
+    const maxMarks = assessment.questions[index]?.maxMarks ?? 1;
+    const performance = marksToPerformance(mark.awardedMarks, maxMarks);
+    return {
+      label: `Q${index + 1}`,
+      skillArea: assessment.questions[index]?.skillArea ?? "",
+      performance,
+      comment:
+        performance === "Correct"
+          ? `${firstName} answered this question well.`
+          : performance === "Partially correct"
+            ? `${firstName} showed some understanding but needs further practice.`
+            : `${firstName} should revisit this skill area with support.`,
+    };
+  });
 
-  const correctCount = context.questionMarks.filter(
-    (mark) => mark.performance === "Correct"
-  ).length;
+  const correctCount = context.questionMarks.filter((mark, index) => {
+    const maxMarks = assessment.questions[index]?.maxMarks ?? 1;
+    return marksToPerformance(mark.awardedMarks, maxMarks) === "Correct";
+  }).length;
 
   return {
     summaryText: `${firstName} completed ${assessment.title} in ${book.name}, scoring ${context.recordedScore} out of ${context.maxScore} (${context.percentage}%).`,
@@ -139,14 +147,14 @@ export async function generateReportText(
   context: ReportGenerationContext
 ): Promise<GeneratedReport> {
   const expectedQuestionCount = context.assessmentRef.assessment.questions.length;
-  const { apiKey, textModel } = getOllamaConfig();
+  const { apiKey, textModel } = getOpenAIConfig();
 
   if (!apiKey) {
     return buildFallbackReport(context);
   }
 
   try {
-    const content = await ollamaChat({
+    const content = await openaiChat({
       model: textModel,
       prompt: buildPrompt(context),
       json: true,

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { analyzeMarkedPaper } from "@/lib/vision";
+import { analyzeMarkedPaper, detectAndMark } from "@/lib/vision";
 import {
   checkUsageLimit,
   incrementUsage,
   SubscriptionError,
 } from "@/lib/subscription";
+import { DEMO_MODE } from "@/lib/demo";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 5;
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -18,61 +20,84 @@ const ALLOWED_TYPES = new Set([
   "image/heif",
 ]);
 
+async function filesToBase64(images: File[]): Promise<string[]> {
+  const results: string[] = [];
+  for (const image of images) {
+    const buffer = Buffer.from(await image.arrayBuffer());
+    results.push(buffer.toString("base64"));
+  }
+  return results;
+}
+
+function collectImages(formData: FormData): File[] {
+  const images = formData
+    .getAll("image")
+    .filter((item): item is File => item instanceof File && item.size > 0);
+
+  return images;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
-    }
+    const session = DEMO_MODE ? null : await getServerSession(authOptions);
 
-    if (session.user.role !== "super_admin") {
-      if (!session.user.branchId) {
-        return NextResponse.json(
-          { error: "No branch is linked to this account." },
-          { status: 403 }
-        );
+    if (!DEMO_MODE) {
+      if (!session?.user) {
+        return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
       }
-      await checkUsageLimit(session.user.branchId, "vision");
+
+      if (session.user.role !== "super_admin") {
+        if (!session.user.branchId) {
+          return NextResponse.json(
+            { error: "No branch is linked to this account." },
+            { status: 403 }
+          );
+        }
+        await checkUsageLimit(session.user.branchId, "vision");
+      }
     }
 
     const formData = await request.formData();
-    const assessmentId = (formData.get("assessmentId") as string)?.trim();
-    const image = formData.get("image") as File | null;
+    const assessmentId = (formData.get("assessmentId") as string)?.trim() || "";
+    const images = collectImages(formData);
 
-    if (!assessmentId) {
+    if (images.length === 0) {
       return NextResponse.json(
-        { error: "Please select an assessment first" },
+        { error: "Please upload at least one photo of the marked test" },
         { status: 400 }
       );
     }
 
-    if (!image || image.size === 0) {
+    if (images.length > MAX_IMAGES) {
       return NextResponse.json(
-        { error: "Please upload a photo of the marked test" },
+        { error: `Please upload no more than ${MAX_IMAGES} photos` },
         { status: 400 }
       );
     }
 
-    if (!ALLOWED_TYPES.has(image.type)) {
-      return NextResponse.json(
-        { error: "Please upload a JPEG, PNG, or WebP image" },
-        { status: 400 }
-      );
+    for (const image of images) {
+      if (!ALLOWED_TYPES.has(image.type)) {
+        return NextResponse.json(
+          { error: "Please upload JPEG, PNG, or WebP images only" },
+          { status: 400 }
+        );
+      }
+
+      if (image.size > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: "Each image must be smaller than 8 MB" },
+          { status: 400 }
+        );
+      }
     }
 
-    if (image.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: "Image must be smaller than 8 MB" },
-        { status: 400 }
-      );
-    }
+    const imagesBase64 = await filesToBase64(images);
 
-    const buffer = Buffer.from(await image.arrayBuffer());
-    const base64 = buffer.toString("base64");
+    const result = assessmentId
+      ? await analyzeMarkedPaper(assessmentId, imagesBase64)
+      : await detectAndMark(imagesBase64);
 
-    const result = await analyzeMarkedPaper(assessmentId, base64);
-
-    if (session.user.role !== "super_admin" && session.user.branchId) {
+    if (!DEMO_MODE && session?.user && session.user.role !== "super_admin" && session.user.branchId) {
       await incrementUsage(session.user.branchId, "vision");
     }
 

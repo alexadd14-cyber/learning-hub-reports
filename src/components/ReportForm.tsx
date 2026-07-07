@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog } from "@/types/catalog";
-import type { QuestionPerformance, Subject } from "@/types/report";
-import { PERFORMANCE_OPTIONS, calculateScore } from "@/types/report";
+import type { Subject } from "@/types/report";
+import {
+  calculateScore,
+  formatMarkOption,
+  markOptions,
+  marksToPerformance,
+} from "@/types/report";
 import type { VisionAnalysisResult } from "@/types/vision";
 import { MOTTO } from "@/lib/brand";
 import MarkingConfirmation from "@/components/MarkingConfirmation";
@@ -17,11 +22,18 @@ const SUBJECTS: { value: Subject; label: string }[] = [
 const inputClass =
   "mt-1 block w-full rounded-lg border border-purple-200 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20";
 
+const MAX_PHOTOS = 5;
+
 interface ReportFormProps {
   accessBlockedReason?: string | null;
 }
 
 export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
+  const skipResetRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,25 +45,21 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
   const [pendingVision, setPendingVision] = useState<VisionAnalysisResult | null>(
     null
   );
-  const [pendingPerformances, setPendingPerformances] = useState<
-    QuestionPerformance[]
-  >([]);
+  const [pendingMarks, setPendingMarks] = useState<number[]>([]);
 
   const [studentName, setStudentName] = useState("");
   const [subject, setSubject] = useState<Subject | "">("");
   const [bookId, setBookId] = useState("");
   const [assessmentId, setAssessmentId] = useState("");
   const [tutorNotes, setTutorNotes] = useState("");
-  const [performances, setPerformances] = useState<QuestionPerformance[]>([]);
+  const [marks, setMarks] = useState<number[]>([]);
   const [lowConfidenceIndexes, setLowConfidenceIndexes] = useState<Set<number>>(
     new Set()
   );
 
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
-  const formRef = useRef<HTMLFormElement>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [detectionNote, setDetectionNote] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/catalog")
@@ -65,9 +73,9 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
 
   useEffect(() => {
     return () => {
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      photoPreviews.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [photoPreview]);
+  }, [photoPreviews]);
 
   const books = useMemo(() => {
     if (!catalog || !subject) return [];
@@ -89,76 +97,146 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
     [assessments, assessmentId]
   );
 
-  useEffect(() => {
-    if (selectedAssessment) {
-      setPerformances(
-        selectedAssessment.questions.map(() => "Correct" as QuestionPerformance)
-      );
-      setLowConfidenceIndexes(new Set());
-      setAnalyzeMessage(null);
-      setMarksConfirmed(false);
-      setPendingVision(null);
-      setPendingPerformances([]);
-      setPhotoFile(null);
-      setPhotoPreview((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      if (photoInputRef.current) photoInputRef.current.value = "";
-    } else {
-      setPerformances([]);
-      setLowConfidenceIndexes(new Set());
-      setPendingVision(null);
-      setPendingPerformances([]);
+  const confirmationAssessment = useMemo(() => {
+    if (pendingVision?.assessmentId && catalog) {
+      for (const book of catalog.books) {
+        const assessment = book.assessments.find(
+          (item) => item.id === pendingVision.assessmentId
+        );
+        if (assessment) return assessment;
+      }
     }
+    return selectedAssessment;
+  }, [catalog, pendingVision, selectedAssessment]);
+
+  useEffect(() => {
+    if (!selectedAssessment) {
+      setMarks([]);
+      return;
+    }
+
+    if (skipResetRef.current) {
+      skipResetRef.current = false;
+      if (marks.length !== selectedAssessment.questions.length) {
+        setMarks(
+          selectedAssessment.questions.map(
+            (question) => question.maxMarks ?? 1
+          )
+        );
+      }
+      return;
+    }
+
+    setMarks(
+      selectedAssessment.questions.map((question) => question.maxMarks ?? 1)
+    );
+    setLowConfidenceIndexes(new Set());
+    setAnalyzeMessage(null);
+    setMarksConfirmed(false);
+    setPendingVision(null);
+    setPendingMarks([]);
+    setPhotoFiles([]);
+    setPhotoPreviews((prev) => {
+      prev.forEach((url) => URL.revokeObjectURL(url));
+      return [];
+    });
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    setDetectionNote(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- skipResetRef guards detection apply
   }, [selectedAssessment]);
 
   const scorePreview = useMemo(() => {
-    if (!selectedAssessment || performances.length === 0) return null;
+    if (!selectedAssessment || marks.length === 0) return null;
 
-    const maxMarks = selectedAssessment.questions.map((q) => q.maxMarks ?? 1);
-    const marks = performances.map((performance, index) => ({
+    const maxMarksPerQuestion = selectedAssessment.questions.map(
+      (question) => question.maxMarks ?? 1
+    );
+    const questionMarks = marks.map((awardedMarks, index) => ({
       questionIndex: index,
-      performance,
+      awardedMarks,
     }));
 
-    return calculateScore(marks, maxMarks);
-  }, [selectedAssessment, performances]);
+    return calculateScore(questionMarks, maxMarksPerQuestion);
+  }, [selectedAssessment, marks]);
 
-  function clearPhoto() {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoFile(null);
-    setPhotoPreview(null);
-    if (photoInputRef.current) photoInputRef.current.value = "";
+  function clearPhotos() {
+    photoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setPhotoFiles([]);
+    setPhotoPreviews([]);
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
   function handleSubjectChange(value: Subject) {
     setSubject(value);
     setBookId("");
     setAssessmentId("");
+    setDetectionNote(null);
   }
 
   function handleBookChange(value: string) {
     setBookId(value);
     setAssessmentId("");
+    setDetectionNote(null);
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+  function resetPhotoAnalysisState() {
     setAnalyzeMessage(null);
     setMarksConfirmed(false);
     setPendingVision(null);
-    setPendingPerformances([]);
+    setPendingMarks([]);
     setError(null);
+    setDetectionNote(null);
   }
 
-  function updatePerformance(index: number, value: QuestionPerformance) {
-    setPerformances((prev) => {
+  function appendPhotos(files: File[]) {
+    if (files.length === 0) return;
+
+    const remaining = MAX_PHOTOS - photoFiles.length;
+    if (remaining <= 0) {
+      setError(
+        `You can add up to ${MAX_PHOTOS} photos. Remove one to add another.`
+      );
+      return;
+    }
+
+    const toAdd = files.slice(0, remaining);
+    if (toAdd.length < files.length) {
+      setError(
+        `Only ${remaining} more photo${remaining === 1 ? "" : "s"} could be added (maximum ${MAX_PHOTOS}).`
+      );
+    } else {
+      setError(null);
+    }
+
+    setPhotoFiles((prev) => [...prev, ...toAdd]);
+    setPhotoPreviews((prev) => [
+      ...prev,
+      ...toAdd.map((file) => URL.createObjectURL(file)),
+    ]);
+    resetPhotoAnalysisState();
+  }
+
+  function handlePhotoUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    appendPhotos(Array.from(event.target.files ?? []));
+    event.target.value = "";
+  }
+
+  function handleCameraCapture(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) appendPhotos([file]);
+    event.target.value = "";
+  }
+
+  function removePhoto(index: number) {
+    URL.revokeObjectURL(photoPreviews[index]);
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateMark(index: number, value: number) {
+    setMarks((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
@@ -170,23 +248,87 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
     });
   }
 
-  function showVisionForReview(result: VisionAnalysisResult) {
-    if (!selectedAssessment) return;
+  const applyDetectionToForm = useCallback(
+    (result: VisionAnalysisResult, detectedMarks: number[]) => {
+      if (!catalog) return;
 
-    const suggested = selectedAssessment.questions.map(
-      (_, index) =>
-        result.questions.find((item) => item.questionIndex === index)
-          ?.performance ?? ("Correct" as QuestionPerformance)
-    );
+      if (!result.testMatch || !result.assessmentId) {
+        setDetectionNote(
+          result.overallNotes ??
+            "Could not auto-detect the test. Please select subject, book, and assessment manually."
+        );
+        return;
+      }
+
+      const book = catalog.books.find((item) =>
+        item.assessments.some(
+          (assessment) => assessment.id === result.assessmentId
+        )
+      );
+
+      if (!book) {
+        setDetectionNote(
+          "Detected test not found in catalog. Please select manually."
+        );
+        return;
+      }
+
+      const assessment = book.assessments.find(
+        (item) => item.id === result.assessmentId
+      );
+
+      skipResetRef.current = true;
+      setSubject(book.subject);
+      setBookId(book.id);
+      setAssessmentId(result.assessmentId!);
+      setMarks(detectedMarks);
+      setDetectionNote(
+        result.overallNotes ??
+          `Detected: ${book.name} — ${assessment?.title ?? result.assessmentId}`
+      );
+    },
+    [catalog]
+  );
+
+  function findAssessmentByIdInCatalog(assessmentId?: string) {
+    if (!catalog || !assessmentId) return null;
+    for (const book of catalog.books) {
+      const assessment = book.assessments.find((item) => item.id === assessmentId);
+      if (assessment) return assessment;
+    }
+    return null;
+  }
+
+  function showVisionForReview(result: VisionAnalysisResult) {
+    const targetAssessment =
+      findAssessmentByIdInCatalog(result.assessmentId) ?? selectedAssessment;
+    if (!targetAssessment) {
+      setError(
+        result.overallNotes ??
+          "Could not find the detected assessment in the catalog. Please select manually."
+      );
+      return;
+    }
+
+    const suggested = targetAssessment.questions.map((question, index) => {
+      const fromVision = result.questions.find(
+        (item) => item.questionIndex === index
+      );
+      return fromVision?.awardedMarks ?? question.maxMarks ?? 1;
+    });
+
+    if (result.testMatch && result.assessmentId) {
+      applyDetectionToForm(result, suggested);
+    }
 
     setPendingVision(result);
-    setPendingPerformances(suggested);
+    setPendingMarks(suggested);
     setMarksConfirmed(false);
     setAnalyzeMessage(null);
   }
 
-  function updatePendingPerformance(index: number, value: QuestionPerformance) {
-    setPendingPerformances((prev) => {
+  function updatePendingMark(index: number, value: number) {
+    setPendingMarks((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
@@ -203,15 +345,12 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
       }
     });
 
-    setPerformances([...pendingPerformances]);
+    applyDetectionToForm(pendingVision, pendingMarks);
+    setMarks([...pendingMarks]);
     setLowConfidenceIndexes(lowConfidence);
     setMarksConfirmed(true);
     setPendingVision(null);
-    setPendingPerformances([]);
-
-    if (pendingVision.overallNotes && !tutorNotes.trim()) {
-      setTutorNotes(pendingVision.overallNotes);
-    }
+    setPendingMarks([]);
 
     const lowCount = lowConfidence.size;
     const matchNote = pendingVision.testMatch
@@ -227,25 +366,25 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
 
   function discardVisionMarks() {
     setPendingVision(null);
-    setPendingPerformances([]);
+    setPendingMarks([]);
     setAnalyzeMessage("Suggestions discarded — mark questions manually below.");
   }
 
   async function handleAnalyzePhoto() {
-    if (accessBlockedReason || !assessmentId || !photoFile) return;
+    if (accessBlockedReason || photoFiles.length === 0) return;
 
     setAnalyzing(true);
-    if (accessBlockedReason) {
-      setError(accessBlockedReason);
-      return;
-    }
-
     setError(null);
     setAnalyzeMessage(null);
+    setDetectionNote(null);
 
     const formData = new FormData();
-    formData.set("assessmentId", assessmentId);
-    formData.set("image", photoFile);
+    if (assessmentId) {
+      formData.set("assessmentId", assessmentId);
+    }
+    for (const file of photoFiles) {
+      formData.append("image", file);
+    }
 
     try {
       const response = await fetch("/api/analyze-marking", {
@@ -259,7 +398,25 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
         throw new Error(data.error || "Failed to analyse photo");
       }
 
-      showVisionForReview(data as VisionAnalysisResult);
+      const result = data as VisionAnalysisResult;
+
+      if (!result.testMatch || !result.assessmentId) {
+        setDetectionNote(
+          result.overallNotes ??
+            "Could not identify the test. Please select subject, book, and assessment manually."
+        );
+        if (result.questions.length > 0) {
+          showVisionForReview(result);
+        } else {
+          setError(
+            result.overallNotes ??
+              "Could not identify the test from the photo. Please select the assessment manually."
+          );
+        }
+        return;
+      }
+
+      showVisionForReview(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to analyse photo");
     } finally {
@@ -267,8 +424,8 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
     setLoading(true);
 
@@ -276,8 +433,8 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
     formData.set("studentName", studentName);
     formData.set("assessmentId", assessmentId);
     formData.set("tutorNotes", tutorNotes);
-    performances.forEach((performance, index) => {
-      formData.set(`question_${index}`, performance);
+    marks.forEach((awardedMarks, index) => {
+      formData.set(`question_${index}`, String(awardedMarks));
     });
 
     try {
@@ -311,13 +468,14 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
       setBookId("");
       setAssessmentId("");
       setTutorNotes("");
-      setPerformances([]);
+      setMarks([]);
       setLowConfidenceIndexes(new Set());
       setAnalyzeMessage(null);
       setMarksConfirmed(false);
       setPendingVision(null);
-      setPendingPerformances([]);
-      clearPhoto();
+      setPendingMarks([]);
+      clearPhotos();
+      setDetectionNote(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -335,161 +493,136 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
 
   if (!catalog) {
     return (
-      <div className="py-8 text-center text-sm text-purple-600">
-        Loading assessment catalog…
+      <div className="flex items-center justify-center py-12 text-sm text-purple-600">
+        <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+        Loading assessments…
       </div>
     );
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-      <div className="rounded-lg border border-purple-100 bg-purple-50 px-4 py-3 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-purple-700">
-          {MOTTO.join(" · ")}
-        </p>
-      </div>
+    <>
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+        {accessBlockedReason && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {accessBlockedReason}
+          </div>
+        )}
 
-      {accessBlockedReason && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {accessBlockedReason}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label htmlFor="studentName" className="block text-sm font-medium text-purple-900">
-            Student Name
-          </label>
-          <input
-            id="studentName"
-            name="studentName"
-            type="text"
-            required
-            value={studentName}
-            onChange={(e) => setStudentName(e.target.value)}
-            placeholder="e.g. Emma Thompson"
-            className={inputClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="subject" className="block text-sm font-medium text-purple-900">
-            Subject
-          </label>
-          <select
-            id="subject"
-            required
-            value={subject}
-            onChange={(e) => handleSubjectChange(e.target.value as Subject)}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              Select a subject
-            </option>
-            {SUBJECTS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="bookId" className="block text-sm font-medium text-purple-900">
-            Book
-          </label>
-          <select
-            id="bookId"
-            required
-            value={bookId}
-            onChange={(e) => handleBookChange(e.target.value)}
-            disabled={!subject}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              {subject ? "Select a book" : "Select subject first"}
-            </option>
-            {books.map((book) => (
-              <option key={book.id} value={book.id}>
-                {book.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="sm:col-span-2">
-          <label htmlFor="assessmentId" className="block text-sm font-medium text-purple-900">
-            Assessment / Chapter
-          </label>
-          <select
-            id="assessmentId"
-            name="assessmentId"
-            required
-            value={assessmentId}
-            onChange={(e) => setAssessmentId(e.target.value)}
-            disabled={!bookId}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              {bookId ? "Select an assessment" : "Select a book first"}
-            </option>
-            {assessments.map((assessment) => (
-              <option key={assessment.id} value={assessment.id}>
-                {assessment.title} ({assessment.chapter})
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {selectedAssessment && (
         <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-4">
           <h3 className="text-sm font-semibold text-purple-900">
-            Upload marked test photo
+            Read marks from photo(s)
           </h3>
           <p className="mt-1 text-xs text-purple-600">
-            Take a clear photo of the marked paper. The system uses the assessment
-            catalog to suggest marks — always review before generating.
+            Upload photos or take pictures of each page of a marked test. Add up
+            to {MAX_PHOTOS} pages — the system will try to detect which
+            assessment it is and suggest marks.
           </p>
 
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="flex-1">
-              <input
-                ref={photoInputRef}
-                id="testPhoto"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handlePhotoChange}
-                className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-purple-700 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-purple-800"
-              />
-              {photoFile && (
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={
+                  Boolean(accessBlockedReason) || photoFiles.length >= MAX_PHOTOS
+                }
+                className="rounded-lg bg-purple-700 px-4 py-2 text-sm font-medium text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Choose photos
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={
+                  Boolean(accessBlockedReason) || photoFiles.length >= MAX_PHOTOS
+                }
+                className="rounded-lg border border-purple-300 bg-white px-4 py-2 text-sm font-medium text-purple-800 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {photoFiles.length > 0 ? "Take another page" : "Take photo"}
+              </button>
+              {photoFiles.length > 0 && (
                 <button
                   type="button"
-                  onClick={clearPhoto}
-                  className="mt-2 text-xs text-purple-600 underline hover:text-purple-800"
+                  onClick={clearPhotos}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-purple-600 underline hover:text-purple-800"
                 >
-                  Remove photo
+                  Remove all
                 </button>
               )}
             </div>
 
-            {photoPreview && (
-              <img
-                src={photoPreview}
-                alt="Marked test preview"
-                className="h-32 w-auto rounded-lg border border-purple-200 object-contain shadow-sm"
-              />
+            <input
+              ref={uploadInputRef}
+              id="testPhotoUpload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              multiple
+              onChange={handlePhotoUpload}
+              disabled={Boolean(accessBlockedReason)}
+              className="hidden"
+            />
+            <input
+              ref={cameraInputRef}
+              id="testPhotoCamera"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleCameraCapture}
+              disabled={Boolean(accessBlockedReason)}
+              className="hidden"
+            />
+
+            {photoFiles.length > 0 && (
+              <p className="text-xs text-purple-600">
+                {photoFiles.length} of {MAX_PHOTOS} page
+                {photoFiles.length === 1 ? "" : "s"} added
+              </p>
+            )}
+
+            {photoPreviews.length > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {photoPreviews.map((preview, index) => (
+                  <div key={preview} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Page ${index + 1}`}
+                      className="h-32 w-auto rounded-lg border border-purple-200 object-contain shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white hover:bg-red-600"
+                      aria-label={`Remove photo ${index + 1}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
           <button
             type="button"
             onClick={handleAnalyzePhoto}
-            disabled={!photoFile || analyzing || Boolean(accessBlockedReason)}
+            disabled={
+              photoFiles.length === 0 ||
+              analyzing ||
+              Boolean(accessBlockedReason)
+            }
             className="mt-4 w-full rounded-lg border border-purple-300 bg-white px-4 py-2.5 text-sm font-semibold text-purple-800 transition-colors hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
-            {analyzing ? "Reading marks from photo…" : "Read marks from photo"}
+            {analyzing
+              ? `Reading marks from photo${photoFiles.length > 1 ? "s" : ""}…`
+              : `Read marks from photo${photoFiles.length > 1 ? "s" : ""}`}
           </button>
+
+          {detectionNote && !pendingVision && (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              {detectionNote}
+            </div>
+          )}
 
           {analyzeMessage && !pendingVision && (
             <div
@@ -503,138 +636,261 @@ export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
             </div>
           )}
         </div>
-      )}
 
-      {pendingVision && photoPreview && selectedAssessment && (
-        <MarkingConfirmation
-          assessment={selectedAssessment}
-          photoPreview={photoPreview}
-          result={pendingVision}
-          performances={pendingPerformances}
-          onPerformanceChange={updatePendingPerformance}
-          onConfirm={confirmVisionMarks}
-          onDiscard={discardVisionMarks}
-        />
-      )}
-
-      {selectedAssessment && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-purple-900">
-              {marksConfirmed ? "Confirmed marks" : "Mark each question"}
-            </h3>
-            {scorePreview && (
-              <p className="text-sm font-medium text-purple-700">
-                Score: {scorePreview.recordedScore}/{scorePreview.maxScore} (
-                {scorePreview.percentage}%)
-              </p>
-            )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="studentName"
+              className="block text-sm font-medium text-purple-900"
+            >
+              Student name
+            </label>
+            <input
+              id="studentName"
+              name="studentName"
+              type="text"
+              required
+              value={studentName}
+              onChange={(event) => setStudentName(event.target.value)}
+              placeholder="e.g. Emma Thompson"
+              className={inputClass}
+              disabled={Boolean(accessBlockedReason)}
+            />
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-purple-100">
-            <table className="min-w-full divide-y divide-purple-100 text-sm">
-              <thead className="bg-purple-50">
-                <tr>
-                  <th className="px-4 py-2 text-left font-semibold text-purple-900">
-                    Question
-                  </th>
-                  <th className="px-4 py-2 text-left font-semibold text-purple-900">
-                    Skill area
-                  </th>
-                  <th className="px-4 py-2 text-right font-semibold text-purple-900">
-                    Marks
-                  </th>
-                  <th className="px-4 py-2 text-left font-semibold text-purple-900">
-                    Performance
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-purple-50 bg-white">
-                {selectedAssessment.questions.map((question, index) => (
-                  <tr
-                    key={index}
-                    className={
-                      lowConfidenceIndexes.has(index) ? "bg-amber-50" : undefined
-                    }
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      Q{index + 1}
-                      {lowConfidenceIndexes.has(index) && (
-                        <span className="ml-2 text-xs font-normal text-amber-700">
-                          review
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{question.skillArea}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">
-                      {question.maxMarks ?? 1}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        name={`question_${index}`}
-                        required
-                        value={performances[index] ?? ""}
-                        onChange={(e) =>
-                          updatePerformance(index, e.target.value as QuestionPerformance)
-                        }
-                        className="block w-full rounded-md border border-purple-200 px-2 py-1.5 text-sm"
-                        disabled={Boolean(accessBlockedReason)}
-                      >
-                        {PERFORMANCE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+          <div>
+            <label
+              htmlFor="subject"
+              className="block text-sm font-medium text-purple-900"
+            >
+              Subject
+            </label>
+            <select
+              id="subject"
+              required
+              value={subject}
+              onChange={(event) =>
+                handleSubjectChange(event.target.value as Subject)
+              }
+              className={inputClass}
+              disabled={Boolean(accessBlockedReason)}
+            >
+              <option value="" disabled>
+                Select a subject
+              </option>
+              {SUBJECTS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="bookId"
+              className="block text-sm font-medium text-purple-900"
+            >
+              Book
+            </label>
+            <select
+              id="bookId"
+              required
+              value={bookId}
+              onChange={(event) => handleBookChange(event.target.value)}
+              disabled={!subject || Boolean(accessBlockedReason)}
+              className={inputClass}
+            >
+              <option value="" disabled>
+                {subject ? "Select a book" : "Select subject first"}
+              </option>
+              {books.map((book) => (
+                <option key={book.id} value={book.id}>
+                  {book.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="assessmentId"
+              className="block text-sm font-medium text-purple-900"
+            >
+              Assessment / Chapter
+            </label>
+            <select
+              id="assessmentId"
+              name="assessmentId"
+              required
+              value={assessmentId}
+              onChange={(event) => setAssessmentId(event.target.value)}
+              disabled={!bookId || Boolean(accessBlockedReason)}
+              className={inputClass}
+            >
+              <option value="" disabled>
+                {bookId ? "Select an assessment" : "Select a book first"}
+              </option>
+              {assessments.map((assessment) => (
+                <option key={assessment.id} value={assessment.id}>
+                  {assessment.title} ({assessment.chapter})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {selectedAssessment && (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-purple-900">
+                {marksConfirmed ? "Confirmed marks" : "Mark each question"}
+              </h3>
+              {scorePreview && (
+                <p className="text-sm font-medium text-purple-700">
+                  Score: {scorePreview.recordedScore}/{scorePreview.maxScore} (
+                  {scorePreview.percentage}%)
+                </p>
+              )}
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-purple-100">
+              <table className="min-w-full divide-y divide-purple-100 text-sm">
+                <thead className="bg-purple-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-semibold text-purple-900">
+                      Question
+                    </th>
+                    <th className="px-4 py-2 text-left font-semibold text-purple-900">
+                      Skill area
+                    </th>
+                    <th className="px-4 py-2 text-right font-semibold text-purple-900">
+                      Max
+                    </th>
+                    <th className="px-4 py-2 text-left font-semibold text-purple-900">
+                      Awarded
+                    </th>
+                    <th className="px-4 py-2 text-left font-semibold text-purple-900">
+                      Performance
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-purple-50 bg-white">
+                  {selectedAssessment.questions.map((question, index) => {
+                    const maxMarks = question.maxMarks ?? 1;
+                    const awarded = marks[index] ?? maxMarks;
+                    const performance = marksToPerformance(awarded, maxMarks);
+
+                    return (
+                      <tr
+                        key={index}
+                        className={
+                          lowConfidenceIndexes.has(index)
+                            ? "bg-amber-50"
+                            : undefined
+                        }
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          Q{index + 1}
+                          {lowConfidenceIndexes.has(index) && (
+                            <span className="ml-2 text-xs font-normal text-amber-700">
+                              review
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {question.skillArea}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-500">
+                          {maxMarks}
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            name={`question_${index}`}
+                            required
+                            value={awarded}
+                            onChange={(event) =>
+                              updateMark(index, Number(event.target.value))
+                            }
+                            className="block w-full rounded-md border border-purple-200 px-2 py-1.5 text-sm"
+                            disabled={Boolean(accessBlockedReason)}
+                          >
+                            {markOptions(maxMarks).map((option) => (
+                              <option key={option} value={option}>
+                                {formatMarkOption(option)}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {performance}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div>
-        <label htmlFor="tutorNotes" className="block text-sm font-medium text-purple-900">
-          Tutor notes (optional)
-        </label>
-        <textarea
-          id="tutorNotes"
-          name="tutorNotes"
-          rows={4}
-          value={tutorNotes}
-          onChange={(e) => setTutorNotes(e.target.value)}
-          placeholder="Any extra observations to include in the report…"
-          className={inputClass}
-          disabled={Boolean(accessBlockedReason)}
+        <div>
+          <label
+            htmlFor="tutorNotes"
+            className="block text-sm font-medium text-purple-900"
+          >
+            Tutor notes (optional)
+          </label>
+          <textarea
+            id="tutorNotes"
+            name="tutorNotes"
+            rows={4}
+            value={tutorNotes}
+            onChange={(event) => setTutorNotes(event.target.value)}
+            placeholder="Any extra observations to include in the report…"
+            className={inputClass}
+            disabled={Boolean(accessBlockedReason)}
+          />
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={
+            loading ||
+            !assessmentId ||
+            pendingVision !== null ||
+            Boolean(accessBlockedReason)
+          }
+          className="w-full rounded-lg bg-purple-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {pendingVision
+            ? "Confirm suggested marks first"
+            : loading
+              ? "Generating report…"
+              : accessBlockedReason
+                ? "Subscription required"
+                : "Generate PDF Report"}
+        </button>
+
+        <p className="text-center text-xs text-purple-400">{MOTTO.join(" · ")}</p>
+      </form>
+
+      {pendingVision && confirmationAssessment && (
+        <MarkingConfirmation
+          assessment={confirmationAssessment}
+          visionResult={pendingVision}
+          marks={pendingMarks}
+          onMarkChange={updatePendingMark}
+          onApply={confirmVisionMarks}
+          onCancel={discardVisionMarks}
         />
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
       )}
-
-      <button
-        type="submit"
-        disabled={
-          loading ||
-          !assessmentId ||
-          pendingVision !== null ||
-          Boolean(accessBlockedReason)
-        }
-        className="w-full rounded-lg bg-purple-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {pendingVision
-          ? "Confirm suggested marks first"
-          : loading
-            ? "Generating report…"
-            : accessBlockedReason
-              ? "Subscription required"
-            : "Generate PDF Report"}
-      </button>
-    </form>
+    </>
   );
 }

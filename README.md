@@ -7,7 +7,7 @@ Generate formal two-page student progress reports matching The Learning Hub temp
 - Scalable assessment catalog (`data/catalog.json`) — add books, chapters, and questions without code changes
 - Mark each question (Correct / Incorrect / Partially correct / Not attempted)
 - Auto-calculated score and percentage
-- AI-generated summary, bullet points, per-question comments, and teacher comment (Ollama)
+- AI-generated summary, bullet points, per-question comments, and teacher comment (OpenAI)
 - PDF output matching the centre template: **Access · Aspire · Achieve**
 
 ## Setup
@@ -35,10 +35,10 @@ Edit `data/catalog.json` — see `data/README.md` for the schema.
 
 | Variable | Description |
 |----------|-------------|
-| `OLLAMA_API_KEY` | For Ollama Cloud |
-| `OLLAMA_BASE_URL` | Default: `https://ollama.com` |
-| `OLLAMA_MODEL` | Text model for report writing (default: `llama3.2`) |
-| `OLLAMA_VISION_MODEL` | Vision model for photo marking (default: `llava`) |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_BASE_URL` | Default: `https://api.openai.com/v1` |
+| `OPENAI_TEXT_MODEL` | Text model for report writing (default: `gpt-4o-mini`) |
+| `OPENAI_VISION_MODEL` | Vision model for photo marking (default: `gpt-4o`) |
 
 ## Photo marking flow
 
@@ -48,8 +48,8 @@ Edit `data/catalog.json` — see `data/README.md` for the schema.
 4. Review highlighted rows, adjust if needed
 5. Generate PDF report
 
-If Ollama is unavailable, a structured fallback report is generated from the marking data.
+If OpenAI is unavailable, a structured fallback report is generated from the marking data.
 
 ## Tech stack
 
-Next.js 15 · TypeScript · Tailwind CSS · Ollama · `@react-pdf/renderer`
+Next.js 15 · TypeScript · Tailwind CSS · OpenAI · `@react-pdf/renderer`

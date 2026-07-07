@@ -36,12 +36,16 @@ export const authOptions: NextAuthOptions = {
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password;
 
-        if (!email || !password) return null;
+        if (!email || !password) {
+          return null;
+        }
 
         const user = await db.user.findUnique({ where: { email } });
+
         if (!user?.passwordHash) return null;
 
         const isMatch = await compare(password, user.passwordHash);
+
         if (!isMatch) return null;
 
         return {

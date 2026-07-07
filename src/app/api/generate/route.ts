@@ -9,22 +9,26 @@ import {
   SubscriptionError,
 } from "@/lib/subscription";
 import { buildReportContext, validateReportInput } from "@/lib/validate";
+import { DEMO_MODE } from "@/lib/demo";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
-    }
+    const session = DEMO_MODE ? null : await getServerSession(authOptions);
 
-    if (session.user.role !== "super_admin") {
-      if (!session.user.branchId) {
-        return NextResponse.json(
-          { error: "No branch is linked to this account." },
-          { status: 403 }
-        );
+    if (!DEMO_MODE) {
+      if (!session?.user) {
+        return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
       }
-      await checkUsageLimit(session.user.branchId, "report");
+
+      if (session.user.role !== "super_admin") {
+        if (!session.user.branchId) {
+          return NextResponse.json(
+            { error: "No branch is linked to this account." },
+            { status: 403 }
+          );
+        }
+        await checkUsageLimit(session.user.branchId, "report");
+      }
     }
 
     const formData = await request.formData();
@@ -64,7 +68,7 @@ export async function POST(request: NextRequest) {
       assessmentRef.assessment.title
     );
 
-    if (session.user.role !== "super_admin" && session.user.branchId) {
+    if (!DEMO_MODE && session?.user && session.user.role !== "super_admin" && session.user.branchId) {
       await incrementUsage(session.user.branchId, "report");
     }
 
@@ -88,3 +92,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const maxDuration = 60;

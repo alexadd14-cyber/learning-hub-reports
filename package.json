@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "read-pdf": "node scripts/read-pdf.mjs",
     "setup:mcp": "npm install --prefix mcp/pdf-reader",
     "db:generate": "prisma generate",

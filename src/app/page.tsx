@@ -5,13 +5,18 @@ import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { assertSubscriptionActive } from "@/lib/subscription";
+import { DEMO_MODE } from "@/lib/demo";
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
+  // Demo mode: skip all auth/subscription checks (no database required) so the
+  // report generator is immediately usable as a standalone site.
+  const session = DEMO_MODE ? null : await getServerSession(authOptions);
   let accessBlockedReason: string | null = null;
   let subscriptionSummary: string | null = null;
 
-  if (!session?.user) {
+  if (DEMO_MODE) {
+    subscriptionSummary = "Demo mode";
+  } else if (!session?.user) {
     accessBlockedReason = "Please sign in to use the report generator.";
   } else if (session.user.role === "super_admin") {
     subscriptionSummary = "Signed in as HQ admin.";
@@ -47,7 +52,11 @@ export default async function Home() {
           two-page progress report.
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-purple-700">
-          {session?.user ? (
+          {DEMO_MODE ? (
+            <span className="rounded bg-amber-100 px-2 py-1 text-amber-800">
+              Demo mode — no sign-in required
+            </span>
+          ) : session?.user ? (
             <>
               <span className="rounded bg-purple-100 px-2 py-1">
                 {session.user.email}

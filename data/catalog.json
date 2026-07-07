@@ -10,6 +10,15 @@
           "id": "english-wb1-ch1",
           "chapter": "Chapter 1",
           "title": "English Assessment - Chapter 1",
+          "detection": {
+            "titlePhrases": [
+              "English Assessment - Chapter 1",
+              "English Workbook 1",
+              "Chapter 1 Assessment"
+            ],
+            "headerText": "English Assessment - Chapter 1",
+            "questionCount": 8
+          },
           "questions": [
             { "skillArea": "Reading comprehension" },
             { "skillArea": "Vocabulary in context" },
@@ -47,6 +56,15 @@
           "id": "maths-wb1-ch1",
           "chapter": "Chapter 1",
           "title": "Maths Assessment - Chapter 1",
+          "detection": {
+            "titlePhrases": [
+              "Maths Assessment - Chapter 1",
+              "Maths Workbook 1",
+              "Chapter 1 Assessment"
+            ],
+            "headerText": "Maths Assessment - Chapter 1",
+            "questionCount": 8
+          },
           "questions": [
             { "skillArea": "Number — place value" },
             { "skillArea": "Addition" },
@@ -213,6 +231,15 @@
           "id": "science-wb1-ch1",
           "chapter": "Chapter 1",
           "title": "Science Assessment - Chapter 1",
+          "detection": {
+            "titlePhrases": [
+              "Science Assessment - Chapter 1",
+              "Science Workbook 1",
+              "Chapter 1 Assessment"
+            ],
+            "headerText": "Science Assessment - Chapter 1",
+            "questionCount": 8
+          },
           "questions": [
             { "skillArea": "Scientific vocabulary" },
             { "skillArea": "Observation" },
