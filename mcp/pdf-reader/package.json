@@ -1,0 +1,10 @@
+{
+  "name": "pdf-reader-mcp",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "pdfjs-dist": "^5.3.93",
+    "zod": "^3.25.76"
+  }
+}

@@ -7,190 +7,366 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { ReportData } from "@/types/report";
-import { getScoreBand, getSubjectLabel } from "@/lib/openai";
+import { brand, getSubjectLabel } from "@/lib/brand";
+import {
+  FooterMottoBar,
+  Page1Header,
+  Page2Header,
+  PagePill,
+} from "@/components/pdf/ReportChrome";
 
-const PURPLE = "#6b21a8";
-const PURPLE_LIGHT = "#9333ea";
-const PURPLE_PALE = "#f3e8ff";
-const PURPLE_DARK = "#581c87";
+const GAP = 4;
+const RADIUS = 8;
 
 const styles = StyleSheet.create({
   page: {
-    padding: 48,
+    paddingTop: 0,
+    paddingBottom: 72,
+    paddingHorizontal: 36,
     fontFamily: "Helvetica",
-    fontSize: 11,
-    color: "#1f2937",
-    backgroundColor: "#ffffff",
-  },
-  header: {
-    backgroundColor: PURPLE,
-    marginHorizontal: -48,
-    marginTop: -48,
-    paddingHorizontal: 48,
-    paddingVertical: 28,
-    marginBottom: 32,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontFamily: "Helvetica-Bold",
-    color: "#ffffff",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: PURPLE_PALE,
-  },
-  metaRow: {
-    flexDirection: "row",
-    marginBottom: 24,
-    gap: 12,
-  },
-  metaBox: {
-    flex: 1,
-    backgroundColor: PURPLE_PALE,
-    borderRadius: 6,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: PURPLE_LIGHT,
-  },
-  metaLabel: {
-    fontSize: 8,
-    color: PURPLE,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  metaValue: {
-    fontSize: 12,
-    fontFamily: "Helvetica-Bold",
-    color: PURPLE_DARK,
-  },
-  scoreSection: {
-    alignItems: "center",
-    marginBottom: 28,
-    paddingVertical: 20,
-    backgroundColor: PURPLE_PALE,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e9d5ff",
-  },
-  scoreLabel: {
     fontSize: 10,
-    color: PURPLE,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 6,
+    color: brand.text,
+    backgroundColor: brand.pageBg,
   },
-  scoreValue: {
-    fontSize: 42,
+  content: {
+    paddingTop: 20,
+  },
+  mainTitle: {
+    fontSize: 22,
     fontFamily: "Helvetica-Bold",
-    color: PURPLE,
+    color: brand.purple,
     marginBottom: 4,
   },
-  scoreBand: {
+  assessmentTitle: {
     fontSize: 13,
-    color: PURPLE_LIGHT,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica",
+    color: brand.purple,
+    marginBottom: 18,
   },
-  sectionTitle: {
+  sectionHeading: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
-    color: PURPLE,
+    color: brand.purple,
     marginBottom: 8,
-    marginTop: 16,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e9d5ff",
   },
-  paragraph: {
-    fontSize: 11,
-    lineHeight: 1.6,
-    color: "#374151",
-    marginBottom: 4,
+  columnHeader: {
+    backgroundColor: brand.purple,
+    borderTopLeftRadius: RADIUS,
+    borderTopRightRadius: RADIUS,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: "center",
   },
-  footer: {
-    position: "absolute",
-    bottom: 36,
-    left: 48,
-    right: 48,
-    borderTopWidth: 1,
-    borderTopColor: "#e9d5ff",
-    paddingTop: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  footerText: {
-    fontSize: 9,
-    color: "#9ca3af",
-  },
-  reportTitle: {
-    fontSize: 16,
+  columnHeaderText: {
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
-    color: PURPLE_DARK,
+    color: brand.white,
     textAlign: "center",
-    marginBottom: 20,
+  },
+  columnBody: {
+    backgroundColor: brand.lavender,
+    borderBottomLeftRadius: RADIUS,
+    borderBottomRightRadius: RADIUS,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    minHeight: 36,
+    justifyContent: "center",
+  },
+  columnBodyText: {
+    fontSize: 8.5,
+    color: brand.purple,
+    textAlign: "center",
+  },
+  columnBodySubtext: {
+    fontSize: 7.5,
+    color: brand.purple,
+    textAlign: "center",
+    marginTop: 2,
+  },
+  summaryBox: {
+    backgroundColor: brand.lavender,
+    borderRadius: RADIUS,
+    padding: 14,
+    marginBottom: 12,
+  },
+  summaryBoxHeading: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: brand.purple,
+    marginBottom: 8,
+  },
+  summaryBoxText: {
+    fontSize: 9.5,
+    lineHeight: 1.55,
+    color: brand.purple,
+  },
+  feedbackBox: {
+    backgroundColor: brand.lavender,
+    borderRadius: RADIUS,
+    padding: 14,
+  },
+  feedbackHeading: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: brand.purple,
+    marginBottom: 5,
+    marginTop: 6,
+  },
+  bulletRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+    paddingLeft: 4,
+  },
+  bullet: {
+    width: 10,
+    fontSize: 9,
+    color: brand.purple,
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 9,
+    lineHeight: 1.45,
+    color: brand.purple,
+  },
+  qTableHeaderCell: {
+    backgroundColor: brand.purple,
+    paddingVertical: 7,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qTableHeaderText: {
+    fontSize: 7.5,
+    fontFamily: "Helvetica-Bold",
+    color: brand.white,
+    textAlign: "center",
+  },
+  qTableBodyCell: {
+    backgroundColor: brand.lavender,
+    paddingVertical: 7,
+    paddingHorizontal: 5,
+    minHeight: 28,
+    justifyContent: "center",
+  },
+  qTableBodyText: {
+    fontSize: 8,
+    color: brand.purple,
+    textAlign: "center",
+  },
+  teacherBox: {
+    backgroundColor: brand.cream,
+    borderRadius: RADIUS,
+    padding: 14,
+    marginTop: 14,
+    minHeight: 70,
+  },
+  teacherHeading: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: brand.goldText,
+    marginBottom: 8,
+  },
+  teacherText: {
+    fontSize: 9.5,
+    lineHeight: 1.5,
+    color: brand.purple,
   },
 });
 
-function ReportDocument({ data }: { data: ReportData }) {
-  const formattedDate = new Date(data.generatedAt).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+const SUMMARY_COLUMNS = [
+  { key: "student", header: "Student", width: "18%" },
+  { key: "assessment", header: "Assessment", width: "22%" },
+  { key: "subject", header: "Subject", width: "16%" },
+  { key: "score", header: "Recorded Score", width: "22%" },
+  { key: "percentage", header: "Percentage", width: "18%" },
+] as const;
+
+const Q_COLUMNS = [
+  { key: "question", header: "Question", width: "12%" },
+  { key: "skill", header: "Skill area", width: "24%" },
+  { key: "performance", header: "Performance", width: "18%" },
+  { key: "comment", header: "Comment", width: "42%" },
+] as const;
+
+function SummaryColumns({ data }: { data: ReportData }) {
+  const values: Record<string, string | string[]> = {
+    student: data.studentName,
+    assessment: [data.bookName, data.chapter],
+    subject: getSubjectLabel(data.subject),
+    score: `${data.recordedScore}/${data.maxScore}`,
+    percentage: `${data.percentage}%`,
+  };
 
   return (
-    <Document>
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: "row", gap: GAP }}>
+        {SUMMARY_COLUMNS.map((col) => (
+          <View key={col.key} style={{ width: col.width }}>
+            <View style={styles.columnHeader}>
+              <Text style={styles.columnHeaderText}>{col.header}</Text>
+            </View>
+            <View style={styles.columnBody}>
+              {Array.isArray(values[col.key]) ? (
+                <>
+                  <Text style={styles.columnBodyText}>
+                    {(values[col.key] as string[])[0]}
+                  </Text>
+                  <Text style={styles.columnBodySubtext}>
+                    {(values[col.key] as string[])[1]}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.columnBodyText}>
+                  {values[col.key] as string}
+                </Text>
+              )}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function BulletSection({ heading, items }: { heading: string; items: string[] }) {
+  return (
+    <View>
+      <Text style={styles.feedbackHeading}>{heading}</Text>
+      {items.map((item, index) => (
+        <View key={index} style={styles.bulletRow}>
+          <Text style={styles.bullet}>•</Text>
+          <Text style={styles.bulletText}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function QuestionTable({ data }: { data: ReportData }) {
+  return (
+    <View>
+      <View style={{ flexDirection: "row", gap: GAP, marginBottom: GAP }}>
+        {Q_COLUMNS.map((col, index) => (
+          <View
+            key={col.key}
+            style={{
+              width: col.width,
+              borderTopLeftRadius: index === 0 ? RADIUS : 0,
+              borderTopRightRadius: index === Q_COLUMNS.length - 1 ? RADIUS : 0,
+              overflow: "hidden",
+            }}
+          >
+            <View style={styles.qTableHeaderCell}>
+              <Text style={styles.qTableHeaderText}>{col.header}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {data.report.questions.map((question, rowIndex) => {
+        const isLast = rowIndex === data.report.questions.length - 1;
+        const rowValues = [
+          question.label,
+          question.skillArea,
+          question.performance,
+          question.comment,
+        ];
+
+        return (
+          <View
+            key={question.label}
+            style={{
+              flexDirection: "row",
+              gap: GAP,
+              marginBottom: isLast ? 0 : GAP,
+            }}
+          >
+            {Q_COLUMNS.map((col, colIndex) => (
+              <View
+                key={col.key}
+                style={{
+                  width: col.width,
+                  borderBottomLeftRadius:
+                    isLast && colIndex === 0 ? RADIUS : 0,
+                  borderBottomRightRadius:
+                    isLast && colIndex === Q_COLUMNS.length - 1 ? RADIUS : 0,
+                  overflow: "hidden",
+                }}
+              >
+                <View style={styles.qTableBodyCell}>
+                  <Text style={styles.qTableBodyText}>{rowValues[colIndex]}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function ReportDocument({ data }: { data: ReportData }) {
+  const subjectLabel = getSubjectLabel(data.subject);
+  const assessmentLine = `${subjectLabel} Assessment — ${data.chapter}`;
+
+  return (
+    <Document
+      title={`${data.studentName} — ${data.assessmentTitle}`}
+      author="The Learning Hub"
+      subject="Student Progress Report"
+    >
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>The Learning Hub</Text>
-          <Text style={styles.headerSubtitle}>Student Progress Report</Text>
-        </View>
+        <Page1Header />
 
-        <Text style={styles.reportTitle}>Progress Report — {data.testName}</Text>
+        <View style={styles.content}>
+          <Text style={styles.mainTitle}>Student Progress Report</Text>
+          <Text style={styles.assessmentTitle}>{assessmentLine}</Text>
 
-        <View style={styles.metaRow}>
-          <View style={styles.metaBox}>
-            <Text style={styles.metaLabel}>Student</Text>
-            <Text style={styles.metaValue}>{data.studentName}</Text>
+          <SummaryColumns data={data} />
+
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryBoxHeading}>Summary</Text>
+            <Text style={styles.summaryBoxText}>{data.report.summaryText}</Text>
           </View>
-          <View style={styles.metaBox}>
-            <Text style={styles.metaLabel}>Subject</Text>
-            <Text style={styles.metaValue}>{getSubjectLabel(data.subject)}</Text>
+
+          <View style={styles.feedbackBox}>
+            <BulletSection
+              heading="What went well"
+              items={data.report.whatWentWell}
+            />
+            <BulletSection
+              heading="Areas for improvement"
+              items={data.report.areasForImprovement}
+            />
+            <BulletSection heading="Next steps" items={data.report.nextSteps} />
           </View>
-          <View style={styles.metaBox}>
-            <Text style={styles.metaLabel}>Date</Text>
-            <Text style={styles.metaValue}>{formattedDate}</Text>
+        </View>
+
+        <FooterMottoBar />
+        <PagePill current={1} total={2} />
+      </Page>
+
+      <Page size="A4" style={styles.page}>
+        <Page2Header />
+
+        <View style={styles.content}>
+          <Text style={[styles.sectionHeading, { fontSize: 13, marginBottom: 12 }]}>
+            Question-by-question analysis
+          </Text>
+
+          <QuestionTable data={data} />
+
+          <View style={styles.teacherBox}>
+            <Text style={styles.teacherHeading}>Teacher comment</Text>
+            <Text style={styles.teacherText}>
+              {data.report.finalTeacherComment}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.scoreSection}>
-          <Text style={styles.scoreLabel}>Test Score</Text>
-          <Text style={styles.scoreValue}>{data.percentage}%</Text>
-          <Text style={styles.scoreBand}>{getScoreBand(data.percentage)}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Overview</Text>
-        <Text style={styles.paragraph}>{data.report.introduction}</Text>
-
-        <Text style={styles.sectionTitle}>Strengths</Text>
-        <Text style={styles.paragraph}>{data.report.strengths}</Text>
-
-        <Text style={styles.sectionTitle}>Areas for Improvement</Text>
-        <Text style={styles.paragraph}>{data.report.areasForImprovement}</Text>
-
-        <Text style={styles.sectionTitle}>Recommendations</Text>
-        <Text style={styles.paragraph}>{data.report.recommendations}</Text>
-
-        <Text style={styles.sectionTitle}>Closing Remarks</Text>
-        <Text style={styles.paragraph}>{data.report.closing}</Text>
-
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>The Learning Hub — Tuition Centre</Text>
-          <Text style={styles.footerText}>Confidential</Text>
-        </View>
+        <FooterMottoBar />
+        <PagePill current={2} total={2} />
       </Page>
     </Document>
   );
@@ -201,8 +377,11 @@ export async function generateReportPdf(data: ReportData): Promise<Buffer> {
   return Buffer.from(buffer);
 }
 
-export function buildPdfFilename(studentName: string, testName: string): string {
+export function buildPdfFilename(
+  studentName: string,
+  assessmentTitle: string
+): string {
   const safeName = studentName.replace(/[^a-zA-Z0-9]/g, "_");
-  const safeTest = testName.replace(/[^a-zA-Z0-9]/g, "_");
-  return `${safeName}_${safeTest}_Report.pdf`;
+  const safeAssessment = assessmentTitle.replace(/[^a-zA-Z0-9]/g, "_");
+  return `${safeName}_${safeAssessment}_Report.pdf`;
 }

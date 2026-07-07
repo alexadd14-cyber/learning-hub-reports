@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pdf-reader": {
+      "command": "node",
+      "args": ["mcp/pdf-reader/index.mjs"]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateReportText } from "@/lib/openai";
+import { generateReportText } from "@/lib/ollama";
 import { buildPdfFilename, generateReportPdf } from "@/lib/pdf";
-import { readSourceText, validateReportInput } from "@/lib/validate";
+import { buildReportContext, validateReportInput } from "@/lib/validate";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,25 +12,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errors.join(". ") }, { status: 400 });
     }
 
-    const sourceText = await readSourceText(formData);
-    if (!sourceText.trim()) {
-      return NextResponse.json(
-        { error: "Source text is empty. Please provide notes for the report." },
-        { status: 400 }
-      );
-    }
+    const { assessmentRef, recordedScore, maxScore, percentage } =
+      buildReportContext(input);
 
-    const fullInput = { ...input, sourceText };
-    const report = await generateReportText(fullInput);
+    const report = await generateReportText({
+      ...input,
+      assessmentRef,
+      recordedScore,
+      maxScore,
+      percentage,
+    });
 
     const reportData = {
-      ...fullInput,
+      studentName: input.studentName,
+      bookName: assessmentRef.book.name,
+      chapter: assessmentRef.assessment.chapter,
+      assessmentTitle: assessmentRef.assessment.title,
+      subject: assessmentRef.book.subject,
+      recordedScore,
+      maxScore,
+      percentage,
       report,
       generatedAt: new Date().toISOString(),
     };
 
     const pdfBuffer = await generateReportPdf(reportData);
-    const filename = buildPdfFilename(input.studentName, input.testName);
+    const filename = buildPdfFilename(
+      input.studentName,
+      assessmentRef.assessment.title
+    );
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,

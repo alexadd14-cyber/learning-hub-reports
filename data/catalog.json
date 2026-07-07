@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "books": [
+    {
+      "id": "english-workbook-1",
+      "name": "English Workbook 1",
+      "subject": "english",
+      "assessments": [
+        {
+          "id": "english-wb1-ch1",
+          "chapter": "Chapter 1",
+          "title": "English Assessment - Chapter 1",
+          "questions": [
+            { "skillArea": "Reading comprehension" },
+            { "skillArea": "Vocabulary in context" },
+            { "skillArea": "Inference" },
+            { "skillArea": "Spelling" },
+            { "skillArea": "Punctuation" },
+            { "skillArea": "Grammar — sentence structure" },
+            { "skillArea": "Creative writing" },
+            { "skillArea": "Proofreading" }
+          ]
+        },
+        {
+          "id": "english-wb1-ch2",
+          "chapter": "Chapter 2",
+          "title": "English Assessment - Chapter 2",
+          "questions": [
+            { "skillArea": "Reading comprehension" },
+            { "skillArea": "Summarising" },
+            { "skillArea": "Inference" },
+            { "skillArea": "Word meaning" },
+            { "skillArea": "Apostrophes" },
+            { "skillArea": "Grammar — tenses" },
+            { "skillArea": "Paragraph structure" },
+            { "skillArea": "Editing and improving" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "maths-workbook-1",
+      "name": "Maths Workbook 1",
+      "subject": "maths",
+      "assessments": [
+        {
+          "id": "maths-wb1-ch1",
+          "chapter": "Chapter 1",
+          "title": "Maths Assessment - Chapter 1",
+          "questions": [
+            { "skillArea": "Number — place value" },
+            { "skillArea": "Addition" },
+            { "skillArea": "Subtraction" },
+            { "skillArea": "Multiplication" },
+            { "skillArea": "Division" },
+            { "skillArea": "Word problems" },
+            { "skillArea": "Mental arithmetic" },
+            { "skillArea": "Reasoning" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "theta-maths",
+      "name": "Theta Maths",
+      "subject": "maths",
+      "assessments": [
+        {
+          "id": "theta-unit-1",
+          "chapter": "Unit 1",
+          "title": "KS3 Maths Progress Unit Test 1",
+          "warnings": [],
+          "detection": {
+            "titlePhrases": [
+              "Theta 1",
+              "Theta Unit 1",
+              "Theta Unit 1 Test",
+              "Θ 1",
+              "KS3 Maths Progress Unit Test 1"
+            ],
+            "headerText": "KS3 Maths Progress Unit Test 1",
+            "questionCount": 7,
+            "objectivesSectionLabel": "Objective",
+            "layoutNotes": "Questions are spread across two pages with an objectives mapping table at the bottom of the final page. Multi-part questions (a, b, c, d) have been combined into a single question entry because they all assess the same objective."
+          },
+          "markingStyle": {
+            "correctIndicators": ["tick", "✓", "check"],
+            "incorrectIndicators": ["cross", "✗", "x"],
+            "partialIndicators": ["half", "½"],
+            "notes": "Tutors mark with ticks and crosses next to each question."
+          },
+          "objectivesSection": {
+            "rawText": "Question 1: Find the mean for a small set of discrete data\nQuestion 2: Calculate the median of a set of data\nQuestion 3: Extract data and interpret line graphs\nQuestion 4: Calculate the mean for a small set of discrete data\nQuestion 5: Interpret data from simple compound and comparative bar charts\nQuestion 6: Read and draw tally charts, tables, charts and line graphs, including for grouped data\nQuestion 7: Compare sets of data using their ranges and averages",
+            "items": [
+              {
+                "objectiveNumber": "1",
+                "objectiveText": "Find the mean for a small set of discrete data"
+              },
+              {
+                "objectiveNumber": "2",
+                "objectiveText": "Calculate the median of a set of data"
+              },
+              {
+                "objectiveNumber": "3",
+                "objectiveText": "Extract data and interpret line graphs"
+              },
+              {
+                "objectiveNumber": "4",
+                "objectiveText": "Calculate the mean for a small set of discrete data"
+              },
+              {
+                "objectiveNumber": "5",
+                "objectiveText": "Interpret data from simple compound and comparative bar charts"
+              },
+              {
+                "objectiveNumber": "6",
+                "objectiveText": "Read and draw tally charts, tables, charts and line graphs, including for grouped data"
+              },
+              {
+                "objectiveNumber": "7",
+                "objectiveText": "Compare sets of data using their ranges and averages"
+              }
+            ]
+          },
+          "questions": [
+            {
+              "number": 1,
+              "label": "Q1",
+              "skillArea": "Mean",
+              "objective": "Find the mean for a small set of discrete data",
+              "objectiveNumber": "1",
+              "topic": "Averages",
+              "maxMarks": 2,
+              "questionSummary": "Calculate the mean of a small data set and explain how adding a value of zero affects the mean.",
+              "detectionHints": "Ticks or crosses are typically placed beside parts (a) and (b), with the working and final answers marked."
+            },
+            {
+              "number": 2,
+              "label": "Q2",
+              "skillArea": "Median and range",
+              "objective": "Calculate the median of a set of data",
+              "objectiveNumber": "2",
+              "topic": "Averages",
+              "maxMarks": 3,
+              "questionSummary": "Find the median, mean and range of a list of discrete data.",
+              "detectionHints": "Each sub-part is usually marked individually beside the answer spaces."
+            },
+            {
+              "number": 3,
+              "label": "Q3",
+              "skillArea": "Interpret graphs",
+              "objective": "Extract data and interpret line graphs",
+              "objectiveNumber": "3",
+              "topic": "Data handling",
+              "maxMarks": 2,
+              "questionSummary": "Use the graph to determine the mode and the range.",
+              "detectionHints": "Marks normally appear beside parts (a) and (b)."
+            },
+            {
+              "number": 4,
+              "label": "Q4",
+              "skillArea": "Mean from data",
+              "objective": "Calculate the mean for a small set of discrete data",
+              "objectiveNumber": "4",
+              "topic": "Averages",
+              "maxMarks": 4,
+              "questionSummary": "Calculate the mean and range of measured lengths, then determine the new mean and range after every value increases by 1 cm.",
+              "detectionHints": "Each calculation part is marked separately next to the answer lines."
+            },
+            {
+              "number": 5,
+              "label": "Q5",
+              "skillArea": "Compound bar charts",
+              "objective": "Interpret data from simple compound and comparative bar charts",
+              "objectiveNumber": "5",
+              "topic": "Charts",
+              "maxMarks": 2,
+              "questionSummary": "Interpret a compound bar chart and compare calls made with calls received.",
+              "detectionHints": "Tutors usually mark the identified day and the written explanation separately."
+            },
+            {
+              "number": 6,
+              "label": "Q6",
+              "skillArea": "Grouped frequency",
+              "objective": "Read and draw tally charts, tables, charts and line graphs, including for grouped data",
+              "objectiveNumber": "6",
+              "topic": "Grouped data",
+              "maxMarks": 3,
+              "questionSummary": "Complete a grouped frequency table from a list of ages using equal class intervals.",
+              "detectionHints": "Marks are generally awarded across the completed tally and frequency table."
+            },
+            {
+              "number": 7,
+              "label": "Q7",
+              "skillArea": "Compare data sets",
+              "objective": "Compare sets of data using their ranges and averages",
+              "objectiveNumber": "7",
+              "topic": "Comparing data",
+              "maxMarks": 2,
+              "questionSummary": "Compare two classes using their means and ranges.",
+              "detectionHints": "Marks are normally given for each valid comparison in the written response."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "science-workbook-1",
+      "name": "Science Workbook 1",
+      "subject": "science",
+      "assessments": [
+        {
+          "id": "science-wb1-ch1",
+          "chapter": "Chapter 1",
+          "title": "Science Assessment - Chapter 1",
+          "questions": [
+            { "skillArea": "Scientific vocabulary" },
+            { "skillArea": "Observation" },
+            { "skillArea": "Classification" },
+            { "skillArea": "Fair testing" },
+            { "skillArea": "Data interpretation" },
+            { "skillArea": "Conclusions" },
+            { "skillArea": "Knowledge recall" },
+            { "skillArea": "Application" }
+          ]
+        }
+      ]
+    }
+  ]
+}
