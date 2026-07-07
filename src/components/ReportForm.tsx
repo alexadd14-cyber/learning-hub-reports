@@ -17,7 +17,11 @@ const SUBJECTS: { value: Subject; label: string }[] = [
 const inputClass =
   "mt-1 block w-full rounded-lg border border-purple-200 bg-white px-4 py-2.5 text-gray-900 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20";
 
-export default function ReportForm() {
+interface ReportFormProps {
+  accessBlockedReason?: string | null;
+}
+
+export default function ReportForm({ accessBlockedReason }: ReportFormProps) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,9 +232,14 @@ export default function ReportForm() {
   }
 
   async function handleAnalyzePhoto() {
-    if (!assessmentId || !photoFile) return;
+    if (accessBlockedReason || !assessmentId || !photoFile) return;
 
     setAnalyzing(true);
+    if (accessBlockedReason) {
+      setError(accessBlockedReason);
+      return;
+    }
+
     setError(null);
     setAnalyzeMessage(null);
 
@@ -339,6 +348,12 @@ export default function ReportForm() {
           {MOTTO.join(" · ")}
         </p>
       </div>
+
+      {accessBlockedReason && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {accessBlockedReason}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -470,7 +485,7 @@ export default function ReportForm() {
           <button
             type="button"
             onClick={handleAnalyzePhoto}
-            disabled={!photoFile || analyzing}
+            disabled={!photoFile || analyzing || Boolean(accessBlockedReason)}
             className="mt-4 w-full rounded-lg border border-purple-300 bg-white px-4 py-2.5 text-sm font-semibold text-purple-800 transition-colors hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {analyzing ? "Reading marks from photo…" : "Read marks from photo"}
@@ -563,6 +578,7 @@ export default function ReportForm() {
                           updatePerformance(index, e.target.value as QuestionPerformance)
                         }
                         className="block w-full rounded-md border border-purple-200 px-2 py-1.5 text-sm"
+                        disabled={Boolean(accessBlockedReason)}
                       >
                         {PERFORMANCE_OPTIONS.map((option) => (
                           <option key={option} value={option}>
@@ -591,6 +607,7 @@ export default function ReportForm() {
           onChange={(e) => setTutorNotes(e.target.value)}
           placeholder="Any extra observations to include in the report…"
           className={inputClass}
+          disabled={Boolean(accessBlockedReason)}
         />
       </div>
 
@@ -602,13 +619,20 @@ export default function ReportForm() {
 
       <button
         type="submit"
-        disabled={loading || !assessmentId || pendingVision !== null}
+        disabled={
+          loading ||
+          !assessmentId ||
+          pendingVision !== null ||
+          Boolean(accessBlockedReason)
+        }
         className="w-full rounded-lg bg-purple-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pendingVision
           ? "Confirm suggested marks first"
           : loading
             ? "Generating report…"
+            : accessBlockedReason
+              ? "Subscription required"
             : "Generate PDF Report"}
       </button>
     </form>

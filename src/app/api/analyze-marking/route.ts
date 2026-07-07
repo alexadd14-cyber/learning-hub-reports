@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { analyzeMarkedPaper } from "@/lib/vision";
+import {
+  checkUsageLimit,
+  incrementUsage,
+  SubscriptionError,
+} from "@/lib/subscription";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -13,6 +20,21 @@ const ALLOWED_TYPES = new Set([
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
+    }
+
+    if (session.user.role !== "super_admin") {
+      if (!session.user.branchId) {
+        return NextResponse.json(
+          { error: "No branch is linked to this account." },
+          { status: 403 }
+        );
+      }
+      await checkUsageLimit(session.user.branchId, "vision");
+    }
+
     const formData = await request.formData();
     const assessmentId = (formData.get("assessmentId") as string)?.trim();
     const image = formData.get("image") as File | null;
@@ -50,8 +72,18 @@ export async function POST(request: NextRequest) {
 
     const result = await analyzeMarkedPaper(assessmentId, base64);
 
+    if (session.user.role !== "super_admin" && session.user.branchId) {
+      await incrementUsage(session.user.branchId, "vision");
+    }
+
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof SubscriptionError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Marking analysis failed:", error);
     const message =
       error instanceof Error ? error.message : "Failed to analyse the photo";

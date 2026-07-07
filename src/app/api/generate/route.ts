@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { generateReportText } from "@/lib/ollama";
+import { authOptions } from "@/lib/auth";
 import { buildPdfFilename, generateReportPdf } from "@/lib/pdf";
+import {
+  checkUsageLimit,
+  incrementUsage,
+  SubscriptionError,
+} from "@/lib/subscription";
 import { buildReportContext, validateReportInput } from "@/lib/validate";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
+    }
+
+    if (session.user.role !== "super_admin") {
+      if (!session.user.branchId) {
+        return NextResponse.json(
+          { error: "No branch is linked to this account." },
+          { status: 403 }
+        );
+      }
+      await checkUsageLimit(session.user.branchId, "report");
+    }
+
     const formData = await request.formData();
     const { input, errors } = validateReportInput(formData);
 
@@ -42,6 +64,10 @@ export async function POST(request: NextRequest) {
       assessmentRef.assessment.title
     );
 
+    if (session.user.role !== "super_admin" && session.user.branchId) {
+      await incrementUsage(session.user.branchId, "report");
+    }
+
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
@@ -50,6 +76,12 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof SubscriptionError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
     console.error("Report generation failed:", error);
     const message =
       error instanceof Error ? error.message : "Failed to generate report";

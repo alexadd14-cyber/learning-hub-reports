@@ -1,8 +1,34 @@
 import ReportForm from "@/components/ReportForm";
 import { SiteLogo } from "@/components/SiteLogo";
 import { MOTTO } from "@/lib/brand";
+import { getServerSession } from "next-auth";
+import Link from "next/link";
+import { authOptions } from "@/lib/auth";
+import { assertSubscriptionActive } from "@/lib/subscription";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  let accessBlockedReason: string | null = null;
+  let subscriptionSummary: string | null = null;
+
+  if (!session?.user) {
+    accessBlockedReason = "Please sign in to use the report generator.";
+  } else if (session.user.role === "super_admin") {
+    subscriptionSummary = "Signed in as HQ admin.";
+  } else if (!session.user.branchId) {
+    accessBlockedReason = "No branch is linked to this account. Contact HQ.";
+  } else {
+    try {
+      const subscription = await assertSubscriptionActive(session.user.branchId);
+      subscriptionSummary = `${subscription.plan.name} plan (${subscription.status})`;
+    } catch (error) {
+      accessBlockedReason =
+        error instanceof Error
+          ? error.message
+          : "Your subscription is inactive. Please contact HQ.";
+    }
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-12 sm:px-6">
       <header className="mb-10 text-center">
@@ -20,10 +46,36 @@ export default function Home() {
           Select an assessment, mark each question, and generate a formal
           two-page progress report.
         </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-purple-700">
+          {session?.user ? (
+            <>
+              <span className="rounded bg-purple-100 px-2 py-1">
+                {session.user.email}
+              </span>
+              {subscriptionSummary ? (
+                <span className="rounded bg-purple-100 px-2 py-1">
+                  {subscriptionSummary}
+                </span>
+              ) : null}
+              {session.user.role === "super_admin" ? (
+                <Link href="/admin" className="rounded bg-purple-700 px-2 py-1 text-white">
+                  Admin
+                </Link>
+              ) : null}
+              <Link href="/api/auth/signout" className="rounded bg-white px-2 py-1 text-purple-700 border border-purple-200">
+                Sign out
+              </Link>
+            </>
+          ) : (
+            <Link href="/login" className="rounded bg-purple-700 px-2 py-1 text-white">
+              Sign in
+            </Link>
+          )}
+        </div>
       </header>
 
       <div className="rounded-2xl border border-purple-100 bg-white p-6 shadow-xl shadow-purple-100/50 sm:p-8">
-        <ReportForm />
+        <ReportForm accessBlockedReason={accessBlockedReason} />
       </div>
 
       <footer className="mt-8 text-center text-xs text-purple-400">
