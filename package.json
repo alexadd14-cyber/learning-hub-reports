@@ -2,7 +2,7 @@
   "name": "learning-hub-reports",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+  "scripts": { 
     "dev": "next dev",
     "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev",
     "build": "next build",
